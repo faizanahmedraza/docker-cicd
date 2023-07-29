@@ -1,0 +1,80 @@
+name: Docker CICD Image
+
+on:
+    push:
+        branches:
+            - main
+            - node18
+            - node16
+            - node14
+            - node12
+    pull_request:
+        branches:
+            - main
+            - node18
+            - node16
+            - node14
+            - node12
+
+jobs:
+    push-to-docker-hub-registry:
+        runs-on: ubuntu-latest
+        steps:
+            - 
+              name: Checkout repository
+              uses: actions/checkout@v3
+            
+            - 
+              name: Login to Docker Hub
+              if: github.event_name != 'pull_request'
+              uses: docker/login-action@v2
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+            
+            - 
+              name: Extract metadata (tags, labels) for Docker
+              if: github.event_name != 'pull_request'
+              id: meta
+              uses: docker/metadata-action@v4
+              with:
+                images: ${{ secrets.DOCKERHUB_USERNAME }}/cicd-bitbucket
+            
+            - 
+              name: Build and push
+              if: github.event_name != 'pull_request'
+              uses: docker/build-push-action@v4
+              with:
+                context: .
+                file: ./Dockerfile
+                push: true
+                tags: ${{ steps.meta.outputs.tags }}
+                labels: ${{ steps.meta.outputs.labels }}
+
+    run-code-analysis:
+        runs-on: ubuntu-latest
+        needs: push-to-docker-hub-registry
+        if: ${{ github.event_name == 'pull_request' }}
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v3
+    
+          - name: Lint Dockerfile
+            run: docker run --rm -i hadolint/hadolint < Dockerfile
+    
+    run-security-checks:
+        runs-on: ubuntu-latest
+        needs: push-to-docker-hub-registry
+        if: ${{ github.event_name == 'pull_request' }}
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+    
+          - name: Security Scanning
+            run: docker run --rm -i aquasec/trivy ${{ secrets.DOCKERHUB_USERNAME }}/cicd-bitbucket
+    
+          - name: Container Structure Tests
+            run: |
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              gcr.io/gcp-runtimes/container-structure-test:v1.11.0 \
+              test --image ${{ secrets.DOCKERHUB_USERNAME }}/cicd-bitbucket --config test-config.yaml
