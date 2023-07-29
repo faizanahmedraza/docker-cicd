@@ -1,1 +1,1 @@
-# docker-cicd
+# docker-cicd default node18 and rsync utility
