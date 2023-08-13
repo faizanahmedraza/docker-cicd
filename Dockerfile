@@ -2,8 +2,7 @@
 FROM node:12
 
 # Install yarn package manager
-RUN npm cache clean --force
-RUN echo "DEBUG: Before npm install -g yarn" && npm install -g yarn
+RUN npm install -g yarn@1.21.1  --force
 
 # Install rsync from an alternative package source for stretch
 RUN echo "deb http://archive.debian.org/debian stretch main" > /etc/apt/sources.list && \
